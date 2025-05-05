@@ -1,7 +1,7 @@
-name: blossom_cli
-description: A sample command-line application.
-version: 1.0.0
-# repository: https://github.com/my_org/my_repo
+name: nip07signer
+description: Sign with NIP-07 extension from the command line
+version: 0.1.0
+repository: https://github.com/zapstore/nip07signer
 
 environment:
   sdk: ^3.7.2

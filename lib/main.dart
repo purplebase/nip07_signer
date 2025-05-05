@@ -1,21 +1,31 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
-import 'dart:math';
 import 'package:args/args.dart';
 
 void main(List<String> arguments) async {
   // Parse command line arguments
-  final parser = ArgParser()
-    ..addFlag('help', abbr: 'h', help: 'Show usage information', negatable: false)
-    ..addOption('port', abbr: 'p', help: 'Port to run the server on (default: 17007)', defaultsTo: '17007');
-  
+  final parser =
+      ArgParser()
+        ..addFlag(
+          'help',
+          abbr: 'h',
+          help: 'Show usage information',
+          negatable: false,
+        )
+        ..addOption(
+          'port',
+          abbr: 'p',
+          help: 'Port to run the server on (default: 17007)',
+          defaultsTo: '17007',
+        );
+
   // Default port
   int port = 17007;
-    
+
   try {
     final argResults = parser.parse(arguments);
-    
+
     // Show help if requested
     if (argResults['help'] == true) {
       stderr.writeln('Usage: dart run <program> [options]');
@@ -24,7 +34,7 @@ void main(List<String> arguments) async {
       stderr.writeln(parser.usage);
       exit(0);
     }
-    
+
     // Get port from arguments
     port = int.tryParse(argResults['port']) ?? 17007;
   } catch (e) {
@@ -36,7 +46,7 @@ void main(List<String> arguments) async {
     stderr.writeln(parser.usage);
     exit(1);
   }
-  
+
   // Read JSON events from stdin
   final events = <Map<String, dynamic>>[];
   final input = stdin.transform(utf8.decoder).transform(LineSplitter());
@@ -58,11 +68,11 @@ void main(List<String> arguments) async {
   // Create HTTP server with the configured port
   final server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
   final url = 'http://localhost:$port/';
-  
+
   final completer = Completer<List<Map<String, dynamic>>>();
-  
+
   // Start the server first
-  final serverFuture = Future(() async {
+  (() async {
     await for (final request in server) {
       final path = request.uri.path;
 
@@ -99,17 +109,16 @@ void main(List<String> arguments) async {
       }
     }
   });
-  
+
   // Give the server a moment to start up before opening the browser
   await Future.delayed(Duration(milliseconds: 100));
-  
+
   // Open the browser automatically based on the operating system - without waiting
   if (Platform.isMacOS) {
     Process.run('open', [url]);
   } else if (Platform.isLinux) {
     Process.run('xdg-open', [url]);
   }
-
 
   // Wait for signed events and output them
   final signedEvents = await completer.future;
