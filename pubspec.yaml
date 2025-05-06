@@ -1,6 +1,6 @@
 name: nip07signer
 description: Sign with NIP-07 extension from the command line
-version: 0.1.0
+version: 0.1.1
 repository: https://github.com/zapstore/nip07signer
 
 environment:

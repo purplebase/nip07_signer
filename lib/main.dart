@@ -21,7 +21,7 @@ void main(List<String> arguments) async {
         );
 
   // Default port
-  int port = 17007;
+  int? port;
 
   try {
     final argResults = parser.parse(arguments);
@@ -36,7 +36,7 @@ void main(List<String> arguments) async {
     }
 
     // Get port from arguments
-    port = int.tryParse(argResults['port']) ?? 17007;
+    port = int.tryParse(argResults['port']);
   } catch (e) {
     stderr.writeln('Error parsing arguments: $e');
     stderr.writeln('');
@@ -65,14 +65,28 @@ void main(List<String> arguments) async {
     exit(1);
   }
 
+  final signedEvents = await launchSigner(events, port: port);
+
+  for (final event in signedEvents) {
+    print(jsonEncode(event));
+  }
+
+  exit(0);
+}
+
+Future<List<Map<String, dynamic>>> launchSigner(
+  List<Map<String, dynamic>> events, {
+  int? port,
+}) async {
   // Create HTTP server with the configured port
+  port ??= 17007;
   final server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
   final url = 'http://localhost:$port/';
 
   final completer = Completer<List<Map<String, dynamic>>>();
 
   // Start the server first
-  (() async {
+  () async {
     await for (final request in server) {
       final path = request.uri.path;
 
@@ -108,7 +122,7 @@ void main(List<String> arguments) async {
         await request.response.close();
       }
     }
-  });
+  }();
 
   // Give the server a moment to start up before opening the browser
   await Future.delayed(Duration(milliseconds: 100));
@@ -122,13 +136,11 @@ void main(List<String> arguments) async {
 
   // Wait for signed events and output them
   final signedEvents = await completer.future;
-  for (final event in signedEvents) {
-    print(jsonEncode(event));
-  }
 
   // Close the server
   await server.close();
-  exit(0);
+
+  return signedEvents;
 }
 
 String getHtmlPage(List<Map<String, dynamic>> events) {
