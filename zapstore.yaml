@@ -1,13 +1,13 @@
-nip07signer:
+nip07_signer:
   cli:
-    name: nip07signer
+    name: nip07_signer
     description: Sign with NIP-07 extension from the command line
-    repository: https://github.com/zapstore/nip07signer
+    repository: https://github.com/purplebase/nip07_signer
     license: MIT
     artifacts:
-      nip07signer-macos-arm64:
+      nip07_signer-macos-arm64:
         platforms: [darwin-arm64]
-      nip07signer-linux-aarch64:
+      nip07_signer-linux-aarch64:
         platforms: [linux-aarch64]
-      nip07signer-linux-amd64:
+      nip07_signer-linux-amd64:
         platforms: [linux-x86_64]
