@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
 import 'package:args/args.dart';
+import 'package:models/models.dart';
 
 void main(List<String> arguments) async {
   // Parse command line arguments
@@ -65,7 +66,7 @@ void main(List<String> arguments) async {
     exit(1);
   }
 
-  final signedEvents = await launchSigner(events, port: port);
+  final signedEvents = await _launchSigner(events, port: port);
 
   for (final event in signedEvents) {
     print(jsonEncode(event));
@@ -74,7 +75,46 @@ void main(List<String> arguments) async {
   exit(0);
 }
 
-Future<List<Map<String, dynamic>>> launchSigner(
+class NIP07Signer extends Signer {
+  String? pubkey;
+
+  NIP07Signer(super.ref);
+
+  @override
+  Future<String> getPublicKey() async {
+    return pubkey!;
+  }
+
+  @override
+  Future<Signer> initialize() async {
+    return this;
+  }
+
+  @override
+  Future<List<E>> sign<E extends Model<dynamic>>(
+    List<PartialModel<dynamic>> partialModels, {
+    String? withPubkey,
+    int? port,
+  }) async {
+    final result = await _launchSigner(
+      partialModels.map((p) => p.toMap()).toList(),
+      port: port,
+    );
+    if (result.isEmpty) {
+      return [];
+    }
+    pubkey = result.first['pubkey'];
+    return result
+        .map((r) {
+          final int kind = r['kind'];
+          return Model.getConstructorForKind(kind)!.call(r, ref);
+        })
+        .cast<E>()
+        .toList();
+  }
+}
+
+Future<List<Map<String, dynamic>>> _launchSigner(
   List<Map<String, dynamic>> events, {
   int? port,
 }) async {
