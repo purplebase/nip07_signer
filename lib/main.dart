@@ -250,7 +250,7 @@ class NIP07Browser {
     if (path == '/') {
       // Serve our unified HTML page
       request.response.headers.contentType = ContentType.html;
-      request.response.write(getUnifiedHtmlPage());
+      request.response.write(getHtmlPage());
       await request.response.close();
     } else if (path == '/api/shutdown') {
       // Check if browser should close
@@ -394,14 +394,14 @@ class NIP07Browser {
     return _signingCompleter!.future;
   }
 
-  String getUnifiedHtmlPage() {
+  String getHtmlPage() {
     return '''
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Nostr NIP-07 Interface</title>
+  <title>NIP-07 Signer for CLI</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -425,6 +425,7 @@ class NIP07Browser {
       padding: 10px;
       border-radius: 5px;
       overflow-x: auto;
+      position: relative;
     }
     .event {
       border: 1px solid #444;
@@ -463,10 +464,16 @@ class NIP07Browser {
       text-align: center;
       padding: 50px 0;
     }
+    /* JSON Syntax Highlighting */
+    .json-key { color: #9cdcfe; }
+    .json-string { color: #ce9178; }
+    .json-number { color: #b5cea8; }
+    .json-boolean { color: #569cd6; }
+    .json-null { color: #569cd6; }
   </style>
 </head>
 <body>
-  <h1>Nostr NIP-07 Interface</h1>
+  <h1>NIP-07 Signer for CLI</h1>
   
   <div id="idle-section">
     <p>Waiting for operation...</p>
@@ -479,16 +486,41 @@ class NIP07Browser {
   </div>
   
   <div id="signing-section">
-    <h2>Event Signing</h2>
-    <p>This page will help you sign Nostr events using your browser extension (NIP-07).</p>
-    <div id="sign-status" class="status">Ready to sign events</div>
+    <h3 id="sign-status" class="status">Ready to sign events</h3>
     <button id="sign-all">Sign All Events</button>
+    <p></p>
+    <p>After signing this window will automatically close and signed events sent to the terminal.</p>
+    <p></p>
     <div id="events-container"></div>
   </div>
   
   <div id="debug" class="debug"></div>
   
   <script>
+    // JSON Syntax Highlighting Function
+    function highlightJSON(json) {
+      return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\\\"])*"(\\s*:)?|\b(true|false|null)\b|-?\\d+(?:\\.\\d*)?(?:[eE][+\\-]?\\d+)?)/g, function (match) {
+        let cls = 'json-number';
+        if (/^"/.test(match)) {
+          if (/:\$/.test(match)) {
+            cls = 'json-key';
+          } else {
+            cls = 'json-string';
+          }
+        } else if (/true|false/.test(match)) {
+          cls = 'json-boolean';
+        } else if (/null/.test(match)) {
+          cls = 'json-null';
+        }
+        return '<span class="' + cls + '">' + match + '</span>';
+      });
+    }
+
+    // Function to update pre content with syntax highlighting
+    function updatePreContent(preElement, content) {
+      preElement.innerHTML = highlightJSON(content);
+    }
+
     // Utilities
     const debugDiv = document.getElementById('debug');
     
@@ -508,6 +540,7 @@ class NIP07Browser {
       document.body.innerHTML = '<div class="error" style="text-align: center; padding: 50px;"><h2>Error: No Nostr extension detected</h2><p>Please install a NIP-07 compatible browser extension.</p></div>';
     } else {
       log('NIP-07 extension detected');
+      let displayedEventsSignatureForSigning = null;
       
       // Function to get current state
       async function checkState() {
@@ -518,7 +551,6 @@ class NIP07Browser {
           }
           
           const state = await response.json();
-          log(`Current state: \${state.mode}`);
           
           // Update UI based on state
           idleSection.style.display = state.mode === 'idle' ? 'block' : 'none';
@@ -547,18 +579,15 @@ class NIP07Browser {
         const statusDiv = document.getElementById('pk-status');
         const publicKeyPre = document.getElementById('public-key');
         
-        log('Starting public key retrieval');
-        
         try {
           // Get public key using NIP-07
           statusDiv.textContent = 'Retrieving public key...';
           const publicKey = await window.nostr.getPublicKey();
           log(`Public key retrieved: \${publicKey}`);
-          publicKeyPre.textContent = publicKey;
+          updatePreContent(publicKeyPre, publicKey);
           statusDiv.textContent = 'Public key retrieved successfully!';
           
           // Send public key to server
-          log('Sending public key to server...');
           const payload = JSON.stringify({ publicKey });
           
           const response = await fetch('/public-key', {
@@ -586,30 +615,55 @@ class NIP07Browser {
       
       // Handle event signing
       async function handleEventSigning(events) {
+        const newSignature = JSON.stringify(events || []);
+
+        if (newSignature === displayedEventsSignatureForSigning) {
+          return;
+        }
+
+        log('New event data for signing. Refreshing signing UI.');
         const statusDiv = document.getElementById('sign-status');
         const container = document.getElementById('events-container');
         const signAllButton = document.getElementById('sign-all');
-        
-        // Clear previous events
+
         container.innerHTML = '';
+
+        if (!events || events.length === 0) {
+          statusDiv.textContent = 'No events to sign.';
+          signAllButton.style.display = 'none';
+          displayedEventsSignatureForSigning = newSignature;
+          return;
+        }
+
+        signAllButton.style.display = 'inline-block';
         
-        // Update status
-        statusDiv.textContent = `Ready to sign \${events.length} events`;
+        // Count events by kind
+        const kindCounts = events.reduce((acc, event) => {
+          const kind = event.kind;
+          acc[kind] = (acc[kind] || 0) + 1;
+          return acc;
+        }, {});
         
-        // Populate events
+        // Create status message with kind breakdown
+        const kindBreakdown = Object.entries(kindCounts)
+          .map(([kind, count]) => `kind \${kind} (\${count} events)`)
+          .join(', ');
+        statusDiv.textContent = `Ready to sign: \${kindBreakdown}`;
+        
         events.forEach((event, index) => {
           const eventDiv = document.createElement('div');
           eventDiv.className = 'event';
           eventDiv.id = `event-\${index}`;
           
           const pre = document.createElement('pre');
-          pre.textContent = JSON.stringify(event, null, 2);
+          updatePreContent(pre, JSON.stringify(event, null, 2));
           
           eventDiv.appendChild(pre);
           container.appendChild(eventDiv);
         });
         
-        // Sign events when button is clicked
+        displayedEventsSignatureForSigning = newSignature;
+        
         signAllButton.onclick = async () => {
           signAllButton.disabled = true;
           statusDiv.textContent = 'Signing events...';
@@ -621,28 +675,22 @@ class NIP07Browser {
               statusDiv.textContent = `Signing event \${i+1} of \${events.length}...`;
               
               const event = events[i];
-              // If the event already has an id and sig, we'll skip signing
               if (event.id && event.sig) {
                 signedEvents.push(event);
                 continue;
               }
               
-              // Create a copy of the event for signing
               const eventToSign = { ...event };
-              
-              // NIP-07 signing
               const signedEvent = await window.nostr.signEvent(eventToSign);
               signedEvents.push(signedEvent);
               
-              // Update UI to show signed event
               const eventDiv = document.getElementById(`event-\${i}`);
               eventDiv.className = 'event signed';
               
               const pre = eventDiv.querySelector('pre');
-              pre.textContent = JSON.stringify(signedEvent, null, 2);
+              updatePreContent(pre, JSON.stringify(signedEvent, null, 2));
             }
             
-            // All events signed, send back to the server
             statusDiv.textContent = 'All events signed! Sending back to server...';
             
             const response = await fetch('/signed-events', {
@@ -678,11 +726,9 @@ class NIP07Browser {
           if (data.shouldClose) {
             log('Shutdown signal received. Closing browser window...');
             window.close();
-            // In case window.close() is blocked
             document.body.innerHTML = '<div style="text-align: center; padding: 50px;"><h2>Server is shutting down</h2><p>You can close this window now.</p></div>';
           }
         } catch (error) {
-          // If we get an error, the server might already be gone, try to close the window
           log(`Error checking shutdown: \${error.message}. Attempting to close window.`);
           window.close();
         }
@@ -700,234 +746,4 @@ class NIP07Browser {
 </html>
     ''';
   }
-}
-
-String getHtmlPage(List<Map<String, dynamic>> events) {
-  final encodedEvents = jsonEncode(events);
-
-  return '''
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Nostr Event Signer</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 20px;
-      line-height: 1.6;
-      background-color: #121212;
-      color: #e0e0e0;
-    }
-    .event {
-      border: 1px solid #444;
-      padding: 15px;
-      margin-bottom: 15px;
-      border-radius: 5px;
-      background-color: #1e1e1e;
-    }
-    .event.signed {
-      background-color: #1f3d2f;
-      border-color: #2d6a4f;
-    }
-    pre {
-      background-color: #2a2a2a;
-      color: #e0e0e0;
-      padding: 10px;
-      border-radius: 5px;
-      overflow-x: auto;
-    }
-    button {
-      background-color: #4CAF50;
-      color: white;
-      padding: 10px 15px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 16px;
-      margin-right: 10px;
-    }
-    button:disabled {
-      background-color: #3a3a3a;
-      cursor: not-allowed;
-    }
-    .status {
-      margin-top: 20px;
-      font-weight: bold;
-    }
-    .error {
-      color: #ff6b6b;
-    }
-    #close-button {
-      background-color: #2196F3;
-      display: none;
-    }
-  </style>
-</head>
-<body>
-  <h1>Nostr Event Signer</h1>
-  <p>This page will help you sign Nostr events using your browser extension (NIP-07).</p>
-  
-  <div id="status">Ready to sign ${events.length} events</div>
-  <button id="sign-all">Sign All Events</button>
-  <button id="close-button">Close and Process Events</button>
-  
-  <div id="events-container"></div>
-  
-  <script>
-    // The events that need to be signed
-    const events = JSON.parse('$encodedEvents');
-    const signedEvents = [];
-    
-    // Initialize the UI
-    document.addEventListener('DOMContentLoaded', () => {
-      const container = document.getElementById('events-container');
-      
-      events.forEach((event, index) => {
-        const eventDiv = document.createElement('div');
-        eventDiv.className = 'event';
-        eventDiv.id = `event-\${index}`;
-        
-        const pre = document.createElement('pre');
-        pre.textContent = JSON.stringify(event, null, 2);
-        
-        eventDiv.appendChild(pre);
-        container.appendChild(eventDiv);
-      });
-      
-      // Check if NIP-07 is available
-      if (!window.nostr) {
-        document.getElementById('status').innerHTML = '<span class="error">Error: No Nostr extension detected. Please install a NIP-07 compatible browser extension.</span>';
-        document.getElementById('sign-all').disabled = true;
-      }
-    });
-    
-    // Sign events when button is clicked
-    document.getElementById('sign-all').addEventListener('click', async () => {
-      const button = document.getElementById('sign-all');
-      const statusDiv = document.getElementById('status');
-      
-      if (!window.nostr) {
-        statusDiv.innerHTML = '<span class="error">Error: No Nostr extension detected</span>';
-        return;
-      }
-      
-      button.disabled = true;
-      statusDiv.textContent = 'Signing events...';
-      
-      try {
-        for (let i = 0; i < events.length; i++) {
-          statusDiv.textContent = `Signing event \${i+1} of \${events.length}...`;
-          
-          const event = events[i];
-          const signedEvent = await signEvent(event);
-          signedEvents.push(signedEvent);
-          
-          // Update UI to show signed event
-          const eventDiv = document.getElementById(`event-\${i}`);
-          eventDiv.className = 'event signed';
-          
-          const pre = eventDiv.querySelector('pre');
-          pre.textContent = JSON.stringify(signedEvent, null, 2);
-        }
-        
-        // All events signed, send back to the server
-        statusDiv.textContent = 'All events signed! Sending back to server...';
-        
-        const response = await fetch('/signed-events', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(signedEvents)
-        });
-        
-        if (response.ok) {
-          statusDiv.textContent = 'Success! All events are signed and ready to process.';
-          // Show the close button
-          const closeButton = document.getElementById('close-button');
-          closeButton.style.display = 'inline-block';
-        } else {
-          throw new Error('Failed to send signed events to server');
-        }
-      } catch (error) {
-        console.error(error);
-        statusDiv.innerHTML = `<span class="error">Error: \${error.message}</span>`;
-        button.disabled = false;
-      }
-    });
-    
-    // Add event listener for close button
-    document.getElementById('close-button').addEventListener('click', async () => {
-      const statusDiv = document.getElementById('status');
-      const closeButton = document.getElementById('close-button');
-      
-      try {
-        // Send signed events to server again to trigger server shutdown
-        closeButton.disabled = true;
-        statusDiv.textContent = 'Processing events and closing...';
-        
-        const response = await fetch('/signed-events', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(signedEvents)
-        });
-        
-        if (response.ok) {
-          statusDiv.textContent = 'Events processed successfully! This window will close automatically.';
-          // The server should exit after receiving the events
-          setTimeout(() => {
-            window.close();
-            // Show message in case window doesn't close (some browsers block window.close())
-            statusDiv.textContent = 'Server has exited. You may now close this tab.';
-          }, 1000);
-        } else {
-          throw new Error('Failed to process events');
-        }
-      } catch (error) {
-        console.error(error);
-        // Check if this is a network error (which is expected when server shuts down)
-        if (error.message.includes('NetworkError')) {
-          // This is expected behavior - the server has shut down
-          statusDiv.textContent = 'Server has exited. You may now close this tab.';
-          // Try to close the window
-          setTimeout(() => {
-            window.close();
-          }, 500);
-        } else {
-          // For other errors, show the error message
-          statusDiv.innerHTML = `<span class="error">Error: \${error.message}</span>`;
-          closeButton.disabled = false;
-        }
-      }
-    });
-    
-    // Function to sign an event using NIP-07
-    async function signEvent(event) {
-      try {
-        // If the event already has an id and sig, we'll skip signing
-        if (event.id && event.sig) {
-          return event;
-        }
-        
-        // Create a copy of the event for signing
-        const eventToSign = { ...event };
-        
-        // NIP-07 signing
-        const signedEvent = await window.nostr.signEvent(eventToSign);
-        return signedEvent;
-      } catch (error) {
-        console.error('Error signing event:', error);
-        throw error;
-      }
-    }
-  </script>
-</body>
-</html>
-  ''';
 }
