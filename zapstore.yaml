@@ -1,5 +1,7 @@
+identifier: nip07_signer
+version: 0.1.2
 description: Sign with NIP-07 extension from the command line
 repository: https://github.com/purplebase/nip07_signer
 license: MIT
 assets:
-  - bin/*
+  - bin/.*

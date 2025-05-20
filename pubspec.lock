@@ -220,9 +220,11 @@ packages:
   models:
     dependency: "direct main"
     description:
-      path: "../models"
-      relative: true
-    source: path
+      path: "."
+      ref: "1d75de2"
+      resolved-ref: "1d75de2e29a3b16c44759b1bf9a8cf8d9384c104"
+      url: "https://github.com/purplebase/models"
+    source: git
     version: "0.1.1"
   node_preamble:
     dependency: transitive
