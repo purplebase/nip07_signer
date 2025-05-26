@@ -100,43 +100,34 @@ void main(List<String> arguments) async {
 }
 
 class NIP07Signer extends Signer {
-  NIP07Signer(super.ref);
+  final int port;
+  NIP07Signer(super.ref, {this.port = 17007});
 
   NIP07Browser? _browser;
-  int? _port;
 
   @override
-  Future<String> getPublicKey() async {
-    if (_browser == null) {
-      throw StateError('NIP07Signer not initialized. Call initialize() first.');
-    }
-    return await _browser!.getPublicKey();
-  }
-
-  @override
-  Future<Signer> initialize({int? port}) async {
-    _port = port ?? 17007;
-    _browser = await NIP07Browser.start(_port!);
-    return this;
+  Future<void> initialize({bool active = true}) async {
+    _browser = await NIP07Browser.start(port);
+    internalSetPubkey(await _browser!.getPublicKey());
+    return super.initialize(active: active);
   }
 
   @override
   Future<void> dispose() async {
     await _browser?.close();
     _browser = null;
+    await super.dispose();
   }
 
   @override
   Future<List<E>> sign<E extends Model<dynamic>>(
-    List<PartialModel<dynamic>> partialModels, {
-    String? withPubkey,
-    int? port,
-  }) async {
+    List<PartialModel<dynamic>> partialModels,
+  ) async {
     if (_browser == null) {
       // For backward compatibility, if sign is called before initialize()
       final result = await _launchSigner(
         partialModels.map((p) => p.toMap()).toList(),
-        port: port ?? _port,
+        port: port,
       );
       return _processSignedEvents(result);
     }
