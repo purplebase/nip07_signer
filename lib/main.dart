@@ -108,6 +108,7 @@ class NIP07Signer extends Signer {
   @override
   Future<void> initialize({bool active = true}) async {
     _browser = await NIP07Browser.start(port);
+    // TODO: If no NIP-07 extension? Shouldn't this return null?
     internalSetPubkey(await _browser!.getPublicKey());
     return super.initialize(active: active);
   }
@@ -148,6 +149,30 @@ class NIP07Signer extends Signer {
         })
         .cast<E>()
         .toList();
+  }
+
+  @override
+  Future<String> nip04Decrypt(String encryptedMessage, String senderPubkey) {
+    // TODO: implement nip04Decrypt
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<String> nip04Encrypt(String message, String recipientPubkey) {
+    // TODO: implement nip04Encrypt
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<String> nip44Decrypt(String encryptedMessage, String senderPubkey) {
+    // TODO: implement nip44Decrypt
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<String> nip44Encrypt(String message, String recipientPubkey) {
+    // TODO: implement nip44Encrypt
+    throw UnimplementedError();
   }
 }
 
