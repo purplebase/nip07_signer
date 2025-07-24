@@ -512,7 +512,7 @@ class NIP07Browser {
   
   <div id="debug" class="debug"></div>
   
-  <script>
+  <script type="module">
     // JSON Syntax Highlighting Function
     function highlightJSON(json) {
       return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\\\"])*"(\\s*:)?|\b(true|false|null)\b|-?\\d+(?:\\.\\d*)?(?:[eE][+\\-]?\\d+)?)/g, function (match) {
@@ -549,6 +549,10 @@ class NIP07Browser {
     const idleSection = document.getElementById('idle-section');
     const publicKeySection = document.getElementById('public-key-section');
     const signingSection = document.getElementById('signing-section');
+
+    // Wait for next event loop to allow window.nostr to be injected
+    // This is nessiary for the nos2x-fox extension
+    await new Promise((resolve) => setTimeout(resolve, 0));
     
     // Check if NIP-07 is available
     if (!window.nostr) {
