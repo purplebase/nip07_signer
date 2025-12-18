@@ -1128,11 +1128,25 @@ class NIP07Browser {
     const encryptionSection = document.getElementById('encryption-section');
 
     // Wait for next event loop to allow window.nostr to be injected
-    // This is nessiary for the nos2x-fox extension
+    // This is necessary for extensions like nos2x-fox that inject late.
     await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Some extensions inject after page load. Poll briefly before failing.
+    async function waitForNostrExtension({ timeoutMs = 4000, intervalMs = 100 } = {}) {
+      const start = performance.now();
+      while (performance.now() - start < timeoutMs) {
+        if (window.nostr) {
+          return true;
+        }
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      }
+      return !!window.nostr;
+    }
+
+    const hasNostrExtension = await waitForNostrExtension();
     
     // Check if NIP-07 is available
-    if (!window.nostr) {
+    if (!hasNostrExtension || !window.nostr) {
       log('No NIP-07 extension found');
       document.body.innerHTML = '<div class="error" style="text-align: center; padding: 50px;"><h2>Error: No Nostr extension detected</h2><p>Please install a NIP-07 compatible browser extension.</p></div>';
     } else {
@@ -1443,7 +1457,7 @@ class NIP07Browser {
           if (data.shouldClose) {
             log('Shutdown signal received. Closing browser window...');
             window.close();
-            document.body.innerHTML = '<div style="text-align: center; padding: 50px;"><h2>Server is shutting down</h2><p>You can close this window now.</p></div>';
+            document.body.innerHTML = '<div style="text-align: center; padding: 50px;"><h2>Events signed</h2><p>All events have been signed. You can return to your terminal.</p></div>';
           }
         } catch (error) {
           log(`Error checking shutdown: \${error.message}. Attempting to close window.`);
