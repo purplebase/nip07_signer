@@ -7,3 +7,4 @@ bin
 
 test.jsonl
 .env
+build.sh
