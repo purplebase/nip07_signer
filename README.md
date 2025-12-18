@@ -9,10 +9,8 @@ cat test.jsonl | nip07_signer
 ```
 
 ```bash
-nak event -c "hello world" | jq 'del(.id,.pubkey,.sig)' | nip07_signer | nak event wss://relay.damus.io
+nak event -c "hello world" | nip07_signer | nak event wss://relay.damus.io
 ```
-
-(Need to delete signature until `nak` supports partial events)
 
 ## Usage as a library
 

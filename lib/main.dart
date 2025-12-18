@@ -4,6 +4,19 @@ import 'dart:async';
 import 'package:args/args.dart';
 import 'package:models/models.dart';
 
+// Ensure events are always re-signed by removing existing signature fields.
+Map<String, dynamic> _stripSignatureFields(Map<String, dynamic> event) {
+  final sanitized = Map<String, dynamic>.from(event);
+  sanitized.remove('id');
+  sanitized.remove('pubkey');
+  sanitized.remove('sig');
+  return sanitized;
+}
+
+List<Map<String, dynamic>> _sanitizeEvents(List<Map<String, dynamic>> events) {
+  return events.map(_stripSignatureFields).toList();
+}
+
 /// Entry point for the NIP-07 signer CLI application.
 ///
 /// This application serves as a bridge between command-line tools and browser-based
@@ -268,18 +281,16 @@ class NIP07Signer extends Signer {
     List<PartialModel<dynamic>> partialModels,
   ) async {
     try {
+      final eventMaps = partialModels.map((p) => p.toMap()).toList();
+      final sanitizedEvents = _sanitizeEvents(eventMaps);
+
       if (_browser == null) {
         // For backward compatibility, if sign is called before initialize()
-        final result = await _launchSigner(
-          partialModels.map((p) => p.toMap()).toList(),
-          port: port,
-        );
+        final result = await _launchSigner(sanitizedEvents, port: port);
         return _processSignedEvents(result);
       }
 
-      final result = await _browser!.signEvents(
-        partialModels.map((p) => p.toMap()).toList(),
-      );
+      final result = await _browser!.signEvents(sanitizedEvents);
       return _processSignedEvents(result);
     } catch (e) {
       // Cache that browser/extension is not available
@@ -474,7 +485,7 @@ Future<List<Map<String, dynamic>>> _launchSigner(
 
   try {
     // Sign the events
-    final signedEvents = await browser.signEvents(events);
+    final signedEvents = await browser.signEvents(_sanitizeEvents(events));
     return signedEvents;
   } finally {
     // Always close the browser server
@@ -803,10 +814,12 @@ class NIP07Browser {
   Future<List<Map<String, dynamic>>> signEvents(
     List<Map<String, dynamic>> events,
   ) async {
+    final sanitizedEvents = _sanitizeEvents(events);
+
     // Set up for signing
     _mode = 'sign';
     _publicKeyCompleter = null;
-    _eventsToSign = events;
+    _eventsToSign = sanitizedEvents;
     _signingCompleter = Completer<List<Map<String, dynamic>>>();
 
     // Make sure browser is open
@@ -1293,12 +1306,10 @@ class NIP07Browser {
               statusDiv.textContent = `Signing event \${i+1} of \${events.length}...`;
               
               const event = events[i];
-              if (event.id && event.sig) {
-                signedEvents.push(event);
-                continue;
-              }
-              
               const eventToSign = { ...event };
+              delete eventToSign.id;
+              delete eventToSign.pubkey;
+              delete eventToSign.sig;
               const signedEvent = await window.nostr.signEvent(eventToSign);
               signedEvents.push(signedEvent);
               
@@ -1455,13 +1466,11 @@ class NIP07Browser {
           
           const data = await response.json();
           if (data.shouldClose) {
-            log('Shutdown signal received. Closing browser window...');
-            window.close();
-            document.body.innerHTML = '<div style="text-align: center; padding: 50px;"><h2>Events signed</h2><p>All events have been signed. You can return to your terminal.</p></div>';
+            log('Shutdown signal received. Showing completion message (window left open).');
+            document.body.innerHTML = '<div style="text-align: center; padding: 50px;"><h2>Events signed</h2><p>All events have been signed. You can return to your terminal and close this tab whenever you like.</p></div>';
           }
         } catch (error) {
-          log(`Error checking shutdown: \${error.message}. Attempting to close window.`);
-          window.close();
+          log(`Error checking shutdown: \${error.message}. Leaving window open.`);
         }
       }
       
