@@ -165,7 +165,7 @@ void main(List<String> arguments) async {
 /// await signer.signIn();
 ///
 /// // Sign events
-/// final signedEvents = await signer.sign(partialEvents);
+/// final signedEvents = await signer.prepareAndSign(partialEvents);
 ///
 /// // Encrypt message
 /// final encrypted = await signer.nip44Encrypt('Hello!', recipientPubkey);
@@ -193,6 +193,12 @@ class NIP07Signer extends Signer {
   // Static cache for browser/extension availability
   static bool? _isAvailableCache;
 
+  @override
+  Future<void> initialize() async {
+    _browser ??= await NIP07Browser.start(port);
+    internalSetPubkey(await _browser!.getPublicKey());
+  }
+
   /// Initializes the signer and establishes connection with the browser extension.
   ///
   /// This method:
@@ -209,8 +215,7 @@ class NIP07Signer extends Signer {
   @override
   Future<void> signIn({setAsActive = true, registerSigner = true}) async {
     try {
-      _browser = await NIP07Browser.start(port);
-      internalSetPubkey(await _browser!.getPublicKey());
+      await initialize();
       return super.signIn(
         setAsActive: setAsActive,
         registerSigner: registerSigner,
@@ -257,8 +262,8 @@ class NIP07Signer extends Signer {
 
   /// Signs a list of partial Nostr events using the browser extension.
   ///
-  /// Takes a list of [PartialModel] objects (unsigned events) and returns
-  /// a list of fully signed [Model] objects with `id`, `pubkey`, and `sig` fields.
+  /// Takes already-prepared [PartialModel] objects and returns fully signed
+  /// [Model] objects with `id`, `pubkey`, and `sig` fields.
   ///
   /// [partialModels] is the list of events to sign. Each event should have
   /// at minimum: `kind`, `content`, `tags`, and `created_at` fields.
@@ -274,11 +279,11 @@ class NIP07Signer extends Signer {
   ///
   /// ```dart
   /// final partialNote = PartialNote(content: 'Hello Nostr!');
-  /// final signedNotes = await signer.sign([partialNote]);
+  /// final signedNotes = await signer.prepareAndSign([partialNote]);
   /// ```
   @override
   Future<List<E>> sign<E extends Model<dynamic>>(
-    List<PartialModel<dynamic>> partialModels,
+    List<PartialModel<Model<dynamic>>> partialModels,
   ) async {
     try {
       final eventMaps = partialModels.map((p) => p.toMap()).toList();

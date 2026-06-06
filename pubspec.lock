@@ -245,20 +245,11 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: main
-      resolved-ref: e6d639c820030f0d559b0ba4a3eb6d597fef52d4
+      ref: "141a09b82c692ee8ce3840f14d78c8ccb6bdb62c"
+      resolved-ref: "141a09b82c692ee8ce3840f14d78c8ccb6bdb62c"
       url: "https://github.com/purplebase/models"
     source: git
     version: "0.3.3"
-  nip44:
-    dependency: transitive
-    description:
-      path: dart
-      ref: "3b40d453c772ad10b57b81762d5b56e80aa1facb"
-      resolved-ref: "3b40d453c772ad10b57b81762d5b56e80aa1facb"
-      url: "https://github.com/paulmillr/nip44.git"
-    source: git
-    version: "1.0.0"
   node_preamble:
     dependency: transitive
     description:
@@ -500,4 +491,4 @@ packages:
     source: hosted
     version: "3.1.3"
 sdks:
-  dart: ">=3.7.2 <4.0.0"
+  dart: ">=3.8.0 <4.0.0"
